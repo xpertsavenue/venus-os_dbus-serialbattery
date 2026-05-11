@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Union, Tuple, List, dict, Callable
+from typing import Union, Tuple, List, Callable
 
 from utils import logger, safe_number_format
 import utils

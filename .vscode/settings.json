@@ -8,5 +8,14 @@
     "python.analysis.extraPaths": [
         "dbus-serialbattery/ext",
         "dbus-serialbattery/ext/velib_python",
-    ]
+    ],
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./test",
+        "-p",
+        "*test.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true
 }
