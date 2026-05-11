@@ -1031,3 +1031,105 @@ def get_venus_os_device_type() -> str:
 # only if PUBLISH_CONFIG_VALUES is set to True
 if PUBLISH_CONFIG_VALUES:
     locals_copy = locals().copy()
+
+# Parse SOC_LUT from config
+def parse_soc_lut(soc_lut_string: str) -> Union[Dict[float, float], None]:
+    """
+    Parse the SOC_LUT string from config into a dictionary.
+    Format: "voltage:soc, voltage:soc, ..."
+    Example: "3.0:0, 3.2:5, 3.3:10, 3.4:15, 3.5:20, 3.55:30, 3.6:35, 3.65:40, 3.7:45, 3.75:50, 3.8:60, 3.85:70, 3.9:80, 3.95:85, 4.0:90, 4.05:93, 4.1:95, 4.15:98, 4.2:100"
+    
+    :param soc_lut_string: The SOC_LUT string from config
+    :return: Dictionary with voltage as key and SOC as value, or None if invalid
+    """
+    if not soc_lut_string or not soc_lut_string.strip():
+        return None
+    
+    try:
+        soc_lut = {}
+        entries = soc_lut_string.split(',')
+        
+        for entry in entries:
+            entry = entry.strip()
+            if not entry:
+                continue
+            
+            if ':' not in entry:
+                logger.warning(f"SOC_LUT: Invalid entry format '{entry}'. Expected 'voltage:soc'")
+                return None
+            
+            parts = entry.split(':')
+            if len(parts) != 2:
+                logger.warning(f"SOC_LUT: Invalid entry format '{entry}'. Expected 'voltage:soc'")
+                return None
+            
+            try:
+                voltage = float(parts[0].strip())
+                soc = float(parts[1].strip())
+                
+                # Validate ranges
+                if voltage < 0:
+                    logger.warning(f"SOC_LUT: Voltage must be positive: {voltage}")
+                    return None
+                if soc < 0 or soc > 100:
+                    logger.warning(f"SOC_LUT: SOC must be between 0 and 100: {soc}")
+                    return None
+                
+                soc_lut[voltage] = soc
+            except ValueError as e:
+                logger.warning(f"SOC_LUT: Could not convert values in entry '{entry}': {e}")
+                return None
+        
+        if not soc_lut:
+            logger.warning("SOC_LUT: No valid entries found")
+            return None
+        
+        # Sort by voltage
+        soc_lut = dict(sorted(soc_lut.items()))
+        
+        logger.info(f"SOC_LUT loaded successfully with {len(soc_lut)} entries")
+        logger.debug(f"SOC_LUT: {soc_lut}")
+        
+        return soc_lut
+    except Exception as e:
+        logger.warning(f"SOC_LUT: Failed to parse SOC_LUT: {e}")
+        return None
+
+
+def interpolate_soc_from_voltage(cell_voltage: float, soc_lut: Dict[float, float]) -> Union[float, None]:
+    """
+    Interpolate SOC from a given cell voltage using the SOC_LUT lookup table.
+    
+    :param cell_voltage: The average cell voltage
+    :param soc_lut: The SOC lookup table (voltage -> SOC mapping)
+    :return: The interpolated SOC value, or None if interpolation is not possible
+    """
+    if not soc_lut or cell_voltage is None:
+        return None
+    
+    # Sort voltages
+    voltages = sorted(soc_lut.keys())
+    
+    # If voltage is below the lowest entry
+    if cell_voltage <= voltages[0]:
+        return soc_lut[voltages[0]]
+    
+    # If voltage is above the highest entry
+    if cell_voltage >= voltages[-1]:
+        return soc_lut[voltages[-1]]
+    
+    # Find the two surrounding points for linear interpolation
+    for i in range(len(voltages) - 1):
+        v1 = voltages[i]
+        v2 = voltages[i + 1]
+        
+        if v1 <= cell_voltage <= v2:
+            soc1 = soc_lut[v1]
+            soc2 = soc_lut[v2]
+            
+            # Linear interpolation: y = y1 + (x - x1) * (y2 - y1) / (x2 - x1)
+            interpolated_soc = soc1 + (cell_voltage - v1) * (soc2 - soc1) / (v2 - v1)
+            
+            return round(interpolated_soc, 2)
+    
+    return None

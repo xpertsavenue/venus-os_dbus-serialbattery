@@ -309,6 +309,7 @@ class Battery(ABC):
         self.soc_calc_capacity_remain_last_time: float = None
         self.soc_calc_reset_start_time: int = None
         self.soc_calc: float = None  # save soc_calc to preserve on restart
+        self.soc_lut = None  # Will be initialized from utils
         self.soc: float = None
         self.soh: float = None
         self.charge_fet: bool = None
@@ -581,6 +582,34 @@ class Battery(ABC):
             self.control_voltage = round(self.max_battery_voltage, 2)
             self.charge_mode = "Keep always max voltage"
 
+    # Neue Methode zur SOC-Berechnung basierend auf LUT
+    def soc_calculation_from_lut(self) -> Union[float, None]:
+        """
+        Calculate SOC based on the SOC_LUT lookup table if available and enabled.
+        Uses the average cell voltage for interpolation.
+        
+        :return: The calculated SOC from LUT, or None if not available
+        """
+        # Prüfe ob LUT vorhanden und aktiviert ist
+        if self.soc_lut is None:
+            return None
+        
+        # Prüfe ob SOC_CALCULATION aktiviert ist
+        if not utils.SOC_CALCULATION:
+            logger.warning("SOC_LUT is configured but SOC_CALCULATION is disabled. SOC_LUT will be ignored.")
+            return None
+        
+        # Berechne durchschnittliche Zellspannung
+        avg_cell_voltage = self.get_cell_voltage_sum() / self.cell_count if self.cell_count and self.cell_count > 0 else None
+        
+        if avg_cell_voltage is None:
+            return None
+        
+        # Interpoliere SOC aus LUT
+        soc = utils.interpolate_soc_from_voltage(avg_cell_voltage, self.soc_lut)
+        
+        return soc
+
     def soc_calculation(self) -> float:
         """
         Calculates the SoC based on the coulomb counting method.
@@ -588,6 +617,14 @@ class Battery(ABC):
         :return: The calculated state of charge
         """
         current_time = time()
+
+         # Wenn SOC_LUT verfügbar ist, nutze diesen für die Berechnung
+        if self.soc_lut is not None:
+            soc_from_lut = self.soc_calculation_from_lut()
+            if soc_from_lut is not None:
+                return soc_from_lut
+            else:
+                logger.debug("SOC_LUT returned None, falling back to coulomb counting")
 
         SOC_RESET_TIME = 60
 
