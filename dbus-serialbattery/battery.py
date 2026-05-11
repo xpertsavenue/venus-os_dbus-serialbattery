@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Union, Tuple, List, Dict, Callable
+from typing import Union, Tuple, List, dict, Callable
 
 from utils import logger, safe_number_format
 import utils
@@ -1887,7 +1887,7 @@ class Battery(ABC):
     def get_heating(self) -> int:
         return self.heating
 
-    def get_filtered_temperature_map(self) -> Dict[int, float]:
+    def get_filtered_temperature_map(self) -> dict[int, float]:
         """
         Get the temperature map with only the sensors that are in the TEMPERATURE_SOURCE_BATTERY list.
 
