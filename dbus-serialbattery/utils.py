@@ -8,7 +8,6 @@ from pathlib import Path
 from struct import Struct, unpack_from
 from time import sleep
 from typing import List, Any, Callable, Optional, Union
-from unittest.mock import DEFAULT
 
 # Third-party imports
 import serial
