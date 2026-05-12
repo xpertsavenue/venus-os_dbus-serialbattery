@@ -1,5 +1,11 @@
 # dbus-serialbattery
 
+## Modification from original from mr-manuel:
+
+I had some issues withthe SOC from my 16s NMC-Battery which the victron system can only charge to 64V which is ~85% SOC. So Ii added a option to calculate the SOC based on the cell voltage which is for a NMC cell possible but maybe not 100% correct.
+
+Please install the Gui-v2 after you installed the driver with wget -O - https://raw.githubusercontent.com/mr-manuel/venus-os_dbus-serialbattery_gui-v2/master/install-new-webgui.sh | bash again.
+
 This driver is for Venus OS devices (any GX device sold by Victron or a Raspberry Pi running the Venus OS image).
 
 The driver will communicate with a Battery Management System (BMS) that support serial (RS232, RS485 or TTL UART) and Bluetooth communication (see [BMS feature comparison](https://mr-manuel.github.io/venus-os_dbus-serialbattery_docs/general/features#bms-feature-comparison) for details). The data is then published to the Venus OS system (dbus). The main purpose is to act as a Battery Monitor in your GX and supply State of Charge (SoC) and other values to the inverter/charger.
