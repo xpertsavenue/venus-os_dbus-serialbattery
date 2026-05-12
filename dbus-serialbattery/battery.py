@@ -309,7 +309,6 @@ class Battery(ABC):
         self.soc_calc_capacity_remain_last_time: float = None
         self.soc_calc_reset_start_time: int = None
         self.soc_calc: float = None  # save soc_calc to preserve on restart
-        self.soc_lut = None  # Will be initialized from utils
         self.soc: float = None
         self.soh: float = None
         self.charge_fet: bool = None
@@ -645,7 +644,7 @@ class Battery(ABC):
         current_time = time()
 
          # Wenn SOC_LUT verfügbar ist, nutze diesen für die Berechnung
-        if self.soc_lut is not None:
+        if utils.SOC_LUT_VOLTAGE and utils.SOC_LUT_SOC:
             soc_from_lut = self.soc_calculation_from_lut()
             if soc_from_lut is not None:
                 return soc_from_lut
