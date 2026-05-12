@@ -8,6 +8,12 @@
 
 * 🚨 The Bluetooth connection is still not stable on some systems. If you want to have a stable connection use the serial connection.
 
+## v2.1.20260512dev
+
+## What's Changed
+
+* Added: option to calculate SOC based on the cell voltage by @xpertsavenue
+
 
 ## v2.1.x
 
