@@ -1104,19 +1104,29 @@ def interpolate_soc_from_voltage(cell_voltage: float, soc_lut: Dict[float, float
     :param soc_lut: The SOC lookup table (voltage -> SOC mapping)
     :return: The interpolated SOC value, or None if interpolation is not possible
     """
+    logger.debug("[DEBUG interpolate_soc_from_voltage] Entering interpolate_soc_from_voltage")
+    logger.debug(f"[DEBUG interpolate_soc_from_voltage] Input - cell_voltage: {cell_voltage}, soc_lut: {soc_lut}")
+    
     if not soc_lut or cell_voltage is None:
+        logger.debug(f"[DEBUG interpolate_soc_from_voltage] Invalid inputs: soc_lut is None/empty: {not soc_lut}, cell_voltage is None: {cell_voltage is None}")
         return None
     
     # Sort voltages
     voltages = sorted(soc_lut.keys())
+    logger.debug(f"[DEBUG interpolate_soc_from_voltage] LUT voltage keys (sorted): {voltages}")
+    logger.debug(f"[DEBUG interpolate_soc_from_voltage] LUT voltage range: {voltages[0]} - {voltages[-1]} V")
     
     # If voltage is below the lowest entry
     if cell_voltage <= voltages[0]:
-        return soc_lut[voltages[0]]
+        result = soc_lut[voltages[0]]
+        logger.debug(f"[DEBUG interpolate_soc_from_voltage] cell_voltage ({cell_voltage}) <= min voltage ({voltages[0]}), returning minimum SOC: {result}%")
+        return result
     
     # If voltage is above the highest entry
     if cell_voltage >= voltages[-1]:
-        return soc_lut[voltages[-1]]
+        result = soc_lut[voltages[-1]]
+        logger.debug(f"[DEBUG interpolate_soc_from_voltage] cell_voltage ({cell_voltage}) >= max voltage ({voltages[-1]}), returning maximum SOC: {result}%")
+        return result
     
     # Find the two surrounding points for linear interpolation
     for i in range(len(voltages) - 1):
@@ -1127,9 +1137,19 @@ def interpolate_soc_from_voltage(cell_voltage: float, soc_lut: Dict[float, float
             soc1 = soc_lut[v1]
             soc2 = soc_lut[v2]
             
+            logger.debug(f"[DEBUG interpolate_soc_from_voltage] Found surrounding points: V1={v1}V (SOC1={soc1}%) <-> V2={v2}V (SOC2={soc2}%)")
+            logger.debug(f"[DEBUG interpolate_soc_from_voltage] Interpolating: cell_voltage={cell_voltage} V is between {v1} and {v2}")
+            
             # Linear interpolation: y = y1 + (x - x1) * (y2 - y1) / (x2 - x1)
             interpolated_soc = soc1 + (cell_voltage - v1) * (soc2 - soc1) / (v2 - v1)
             
-            return round(interpolated_soc, 2)
+            logger.debug(f"[DEBUG interpolate_soc_from_voltage] Calculation: {soc1} + ({cell_voltage} - {v1}) * ({soc2} - {soc1}) / ({v2} - {v1}) = {interpolated_soc}")
+            result = round(interpolated_soc, 2)
+            logger.debug(f"[DEBUG interpolate_soc_from_voltage] Final result (rounded): {result}%")
+            logger.debug("[DEBUG interpolate_soc_from_voltage] Exiting interpolate_soc_from_voltage")
+            
+            return result
     
+    logger.debug("[DEBUG interpolate_soc_from_voltage] No interpolation point found, returning None")
+    logger.debug("[DEBUG interpolate_soc_from_voltage] Exiting interpolate_soc_from_voltage")
     return None

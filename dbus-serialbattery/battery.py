@@ -590,23 +590,40 @@ class Battery(ABC):
         
         :return: The calculated SOC from LUT, or None if not available
         """
+        logger.debug("[DEBUG soc_calculation_from_lut] Entering soc_calculation_from_lut method")
+        
         # Prüfe ob LUT vorhanden und aktiviert ist
         if self.soc_lut is None:
+            logger.debug("[DEBUG soc_calculation_from_lut] soc_lut is None, returning None")
             return None
+        
+        logger.debug(f"[DEBUG soc_calculation_from_lut] soc_lut is available with {len(self.soc_lut)} entries")
         
         # Prüfe ob SOC_CALCULATION aktiviert ist
         if not utils.SOC_CALCULATION:
             logger.warning("SOC_LUT is configured but SOC_CALCULATION is disabled. SOC_LUT will be ignored.")
+            logger.debug("[DEBUG soc_calculation_from_lut] SOC_CALCULATION is disabled, returning None")
             return None
         
+        logger.debug("[DEBUG soc_calculation_from_lut] SOC_CALCULATION is enabled")
+        
         # Berechne durchschnittliche Zellspannung
-        avg_cell_voltage = self.get_cell_voltage_sum() / self.cell_count if self.cell_count and self.cell_count > 0 else None
+        cell_voltage_sum = self.get_cell_voltage_sum()
+        logger.debug(f"[DEBUG soc_calculation_from_lut] cell_voltage_sum: {cell_voltage_sum}, cell_count: {self.cell_count}")
+        
+        avg_cell_voltage = cell_voltage_sum / self.cell_count if self.cell_count and self.cell_count > 0 else None
+        logger.debug(f"[DEBUG soc_calculation_from_lut] avg_cell_voltage: {avg_cell_voltage} V")
         
         if avg_cell_voltage is None:
+            logger.debug("[DEBUG soc_calculation_from_lut] avg_cell_voltage is None, returning None")
             return None
         
         # Interpoliere SOC aus LUT
+        logger.debug(f"[DEBUG soc_calculation_from_lut] Calling interpolate_soc_from_voltage with avg_cell_voltage={avg_cell_voltage}")
         soc = utils.interpolate_soc_from_voltage(avg_cell_voltage, self.soc_lut)
+        
+        logger.debug(f"[DEBUG soc_calculation_from_lut] Returned SOC from LUT: {soc}%")
+        logger.debug("[DEBUG soc_calculation_from_lut] Exiting soc_calculation_from_lut method")
         
         return soc
 
