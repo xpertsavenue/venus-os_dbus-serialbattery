@@ -247,8 +247,8 @@ if SOC_RESET_AFTER_DAYS and SOC_RESET_CELL_VOLTAGE < MAX_CELL_VOLTAGE:
 SOC_CALCULATION: bool = get_bool_from_config("DEFAULT", "SOC_CALCULATION")
 
 # --------- SOC LUT (Look-Up Table) ---------
-SOC_LUT_VOLTAGE: List[float] = get_list_from_config(DEFAULT, "SOC_LUT_VOLTAGE", float)
-SOC_LUT_SOC: List[float] = get_list_from_config(DEFAULT, "SOC_LUT_SOC", float)
+SOC_LUT_VOLTAGE: List[float] = get_list_from_config("DEFAULT", "SOC_LUT_VOLTAGE", float)
+SOC_LUT_SOC: List[float] = get_list_from_config("DEFAULT", "SOC_LUT_SOC", float)
 
 # Validierung und Aufbau der LUT
 SOC_LUT: Union[dict, None] = None
