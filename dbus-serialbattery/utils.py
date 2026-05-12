@@ -8,6 +8,7 @@ from pathlib import Path
 from struct import Struct, unpack_from
 from time import sleep
 from typing import List, Any, Callable, Optional, Union
+from unittest.mock import DEFAULT
 
 # Third-party imports
 import serial
@@ -128,8 +129,7 @@ def get_float_from_config(group: str, option: str, default_value: float = 0) -> 
     except ValueError:
         errors_in_config.append(f"Invalid value '{value}' for option '{option}' in group '{group}'.")
         return default_value
-
-
+    
 def get_int_from_config(group: str, option: str, default_value: int = 0) -> int:
     """
     Get an integer value from the config file.
@@ -178,6 +178,8 @@ def check_config_issue(condition: bool, message: str):
     """
     if condition:
         errors_in_config.append(f"{message}")
+
+
 
 
 # SAVE CONFIG VALUES to constants
@@ -244,6 +246,28 @@ if SOC_RESET_AFTER_DAYS and SOC_RESET_CELL_VOLTAGE < MAX_CELL_VOLTAGE:
 
 # --------- SoC Calculation ---------
 SOC_CALCULATION: bool = get_bool_from_config("DEFAULT", "SOC_CALCULATION")
+
+# --------- SOC LUT (Look-Up Table) ---------
+SOC_LUT_VOLTAGE: List[float] = get_list_from_config(DEFAULT, "SOC_LUT_VOLTAGE", float)
+SOC_LUT_SOC: List[float] = get_list_from_config(DEFAULT, "SOC_LUT_SOC", float)
+
+# Validierung und Aufbau der LUT
+SOC_LUT: Union[dict, None] = None
+
+if SOC_CALCULATION and SOC_LUT_VOLTAGE and SOC_LUT_SOC:
+    if len(SOC_LUT_VOLTAGE) != len(SOC_LUT_SOC):
+        logger.warning(
+            f"SOC_LUT_VOLTAGE has {len(SOC_LUT_VOLTAGE)} entries but "
+            f"SOC_LUT_SOC has {len(SOC_LUT_SOC)} entries. "
+            f"Both lists must have the same length. SOC_LUT will be ignored."
+        )
+    else:
+        SOC_LUT = dict(sorted(zip(SOC_LUT_VOLTAGE, SOC_LUT_SOC)))
+        logger.info(f"SOC_LUT loaded with {len(SOC_LUT)} entries: {SOC_LUT}")
+elif SOC_LUT_VOLTAGE and not SOC_CALCULATION:
+    logger.warning("SOC_LUT_VOLTAGE/SOC_LUT_SOC configured but SOC_CALCULATION is disabled. SOC_LUT will be ignored.")
+else:
+    logger.debug("SOC_LUT not configured, using coulomb counting.")
 
 # --------- Current correction --------
 CURRENT_REPORTED_BY_BMS: list = get_list_from_config("DEFAULT", "CURRENT_REPORTED_BY_BMS", float)
@@ -1031,125 +1055,3 @@ def get_venus_os_device_type() -> str:
 # only if PUBLISH_CONFIG_VALUES is set to True
 if PUBLISH_CONFIG_VALUES:
     locals_copy = locals().copy()
-
-# Parse SOC_LUT from config
-def parse_soc_lut(soc_lut_string: str) -> Union[dict[float, float], None]:
-    """
-    Parse the SOC_LUT string from config into a dictionary.
-    Format: "voltage:soc, voltage:soc, ..."
-    Example: "3.0:0, 3.2:5, 3.3:10, 3.4:15, 3.5:20, 3.55:30, 3.6:35, 3.65:40, 3.7:45, 3.75:50, 3.8:60, 3.85:70, 3.9:80, 3.95:85, 4.0:90, 4.05:93, 4.1:95, 4.15:98, 4.2:100"
-    
-    :param soc_lut_string: The SOC_LUT string from config
-    :return: Dictionary with voltage as key and SOC as value, or None if invalid
-    """
-    if not soc_lut_string or not soc_lut_string.strip():
-        return None
-    
-    try:
-        soc_lut = {}
-        entries = soc_lut_string.split(',')
-        
-        for entry in entries:
-            entry = entry.strip()
-            if not entry:
-                continue
-            
-            if ':' not in entry:
-                logger.warning(f"SOC_LUT: Invalid entry format '{entry}'. Expected 'voltage:soc'")
-                return None
-            
-            parts = entry.split(':')
-            if len(parts) != 2:
-                logger.warning(f"SOC_LUT: Invalid entry format '{entry}'. Expected 'voltage:soc'")
-                return None
-            
-            try:
-                voltage = float(parts[0].strip())
-                soc = float(parts[1].strip())
-                
-                # Validate ranges
-                if voltage < 0:
-                    logger.warning(f"SOC_LUT: Voltage must be positive: {voltage}")
-                    return None
-                if soc < 0 or soc > 100:
-                    logger.warning(f"SOC_LUT: SOC must be between 0 and 100: {soc}")
-                    return None
-                
-                soc_lut[voltage] = soc
-            except ValueError as e:
-                logger.warning(f"SOC_LUT: Could not convert values in entry '{entry}': {e}")
-                return None
-        
-        if not soc_lut:
-            logger.warning("SOC_LUT: No valid entries found")
-            return None
-        
-        # Sort by voltage
-        soc_lut = dict(sorted(soc_lut.items()))
-        
-        logger.info(f"SOC_LUT loaded successfully with {len(soc_lut)} entries")
-        logger.debug(f"SOC_LUT: {soc_lut}")
-        
-        return soc_lut
-    except Exception as e:
-        logger.warning(f"SOC_LUT: Failed to parse SOC_LUT: {e}")
-        return None
-
-
-def interpolate_soc_from_voltage(cell_voltage: float, soc_lut: dict[float, float]) -> Union[float, None]:
-    """
-    Interpolate SOC from a given cell voltage using the SOC_LUT lookup table.
-    
-    :param cell_voltage: The average cell voltage
-    :param soc_lut: The SOC lookup table (voltage -> SOC mapping)
-    :return: The interpolated SOC value, or None if interpolation is not possible
-    """
-    logger.debug("[DEBUG interpolate_soc_from_voltage] Entering interpolate_soc_from_voltage")
-    logger.debug(f"[DEBUG interpolate_soc_from_voltage] Input - cell_voltage: {cell_voltage}, soc_lut: {soc_lut}")
-    
-    if not soc_lut or cell_voltage is None:
-        logger.debug(f"[DEBUG interpolate_soc_from_voltage] Invalid inputs: soc_lut is None/empty: {not soc_lut}, cell_voltage is None: {cell_voltage is None}")
-        return None
-    
-    # Sort voltages
-    voltages = sorted(soc_lut.keys())
-    logger.debug(f"[DEBUG interpolate_soc_from_voltage] LUT voltage keys (sorted): {voltages}")
-    logger.debug(f"[DEBUG interpolate_soc_from_voltage] LUT voltage range: {voltages[0]} - {voltages[-1]} V")
-    
-    # If voltage is below the lowest entry
-    if cell_voltage <= voltages[0]:
-        result = soc_lut[voltages[0]]
-        logger.debug(f"[DEBUG interpolate_soc_from_voltage] cell_voltage ({cell_voltage}) <= min voltage ({voltages[0]}), returning minimum SOC: {result}%")
-        return result
-    
-    # If voltage is above the highest entry
-    if cell_voltage >= voltages[-1]:
-        result = soc_lut[voltages[-1]]
-        logger.debug(f"[DEBUG interpolate_soc_from_voltage] cell_voltage ({cell_voltage}) >= max voltage ({voltages[-1]}), returning maximum SOC: {result}%")
-        return result
-    
-    # Find the two surrounding points for linear interpolation
-    for i in range(len(voltages) - 1):
-        v1 = voltages[i]
-        v2 = voltages[i + 1]
-        
-        if v1 <= cell_voltage <= v2:
-            soc1 = soc_lut[v1]
-            soc2 = soc_lut[v2]
-            
-            logger.debug(f"[DEBUG interpolate_soc_from_voltage] Found surrounding points: V1={v1}V (SOC1={soc1}%) <-> V2={v2}V (SOC2={soc2}%)")
-            logger.debug(f"[DEBUG interpolate_soc_from_voltage] Interpolating: cell_voltage={cell_voltage} V is between {v1} and {v2}")
-            
-            # Linear interpolation: y = y1 + (x - x1) * (y2 - y1) / (x2 - x1)
-            interpolated_soc = soc1 + (cell_voltage - v1) * (soc2 - soc1) / (v2 - v1)
-            
-            logger.debug(f"[DEBUG interpolate_soc_from_voltage] Calculation: {soc1} + ({cell_voltage} - {v1}) * ({soc2} - {soc1}) / ({v2} - {v1}) = {interpolated_soc}")
-            result = round(interpolated_soc, 2)
-            logger.debug(f"[DEBUG interpolate_soc_from_voltage] Final result (rounded): {result}%")
-            logger.debug("[DEBUG interpolate_soc_from_voltage] Exiting interpolate_soc_from_voltage")
-            
-            return result
-    
-    logger.debug("[DEBUG interpolate_soc_from_voltage] No interpolation point found, returning None")
-    logger.debug("[DEBUG interpolate_soc_from_voltage] Exiting interpolate_soc_from_voltage")
-    return None

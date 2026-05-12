@@ -585,47 +585,56 @@ class Battery(ABC):
     # Neue Methode zur SOC-Berechnung basierend auf LUT
     def soc_calculation_from_lut(self) -> Union[float, None]:
         """
-        Calculate SOC based on the SOC_LUT lookup table if available and enabled.
-        Uses the average cell voltage for interpolation.
-        
-        :return: The calculated SOC from LUT, or None if not available
+        Calculate SOC based on SOC_LUT_VOLTAGE / SOC_LUT_SOC lookup table from config.
+        Uses average cell voltage and linear interpolation.
+        Returns the calculated SOC in %, or None if not available.
+
+        :return: SOC in % or None if not calculable
         """
-        logger.debug("[DEBUG soc_calculation_from_lut] Entering soc_calculation_from_lut method")
-        
-        # Prüfe ob LUT vorhanden und aktiviert ist
-        if self.soc_lut is None:
-            logger.debug("[DEBUG soc_calculation_from_lut] soc_lut is None, returning None")
+        # Prüfe ob LUT in utils konfiguriert ist
+        if not utils.SOC_LUT_VOLTAGE or not utils.SOC_LUT_SOC:
+            logger.debug("soc_calculation_from_lut: SOC_LUT_VOLTAGE or SOC_LUT_SOC not configured, skipping.")
             return None
-        
-        logger.debug(f"[DEBUG soc_calculation_from_lut] soc_lut is available with {len(self.soc_lut)} entries")
-        
-        # Prüfe ob SOC_CALCULATION aktiviert ist
-        if not utils.SOC_CALCULATION:
-            logger.warning("SOC_LUT is configured but SOC_CALCULATION is disabled. SOC_LUT will be ignored.")
-            logger.debug("[DEBUG soc_calculation_from_lut] SOC_CALCULATION is disabled, returning None")
+
+        # Prüfe ob cell_count bekannt
+        if not self.cell_count or self.cell_count <= 0:
+            logger.debug("soc_calculation_from_lut: cell_count not available yet, skipping.")
             return None
-        
-        logger.debug("[DEBUG soc_calculation_from_lut] SOC_CALCULATION is enabled")
-        
-        # Berechne durchschnittliche Zellspannung
-        cell_voltage_sum = self.get_cell_voltage_sum()
-        logger.debug(f"[DEBUG soc_calculation_from_lut] cell_voltage_sum: {cell_voltage_sum}, cell_count: {self.cell_count}")
-        
-        avg_cell_voltage = cell_voltage_sum / self.cell_count if self.cell_count and self.cell_count > 0 else None
-        logger.debug(f"[DEBUG soc_calculation_from_lut] avg_cell_voltage: {avg_cell_voltage} V")
-        
-        if avg_cell_voltage is None:
-            logger.debug("[DEBUG soc_calculation_from_lut] avg_cell_voltage is None, returning None")
+
+        # Durchschnittliche Zellspannung berechnen
+        voltage_sum = self.get_cell_voltage_sum()
+        if not voltage_sum:
+            logger.debug("soc_calculation_from_lut: cell voltage sum is 0 or None, skipping.")
             return None
-        
-        # Interpoliere SOC aus LUT
-        logger.debug(f"[DEBUG soc_calculation_from_lut] Calling interpolate_soc_from_voltage with avg_cell_voltage={avg_cell_voltage}")
-        soc = utils.interpolate_soc_from_voltage(avg_cell_voltage, self.soc_lut)
-        
-        logger.debug(f"[DEBUG soc_calculation_from_lut] Returned SOC from LUT: {soc}%")
-        logger.debug("[DEBUG soc_calculation_from_lut] Exiting soc_calculation_from_lut method")
-        
-        return soc
+
+        avg_cell_voltage = round(voltage_sum / self.cell_count, 4)
+
+        logger.debug(
+            f"soc_calculation_from_lut: voltage_sum={voltage_sum:.3f} V, "
+            f"cell_count={self.cell_count}, avg_cell_voltage={avg_cell_voltage:.4f} V"
+        )
+        logger.debug(
+            f"soc_calculation_from_lut: LUT voltages={utils.SOC_LUT_VOLTAGE}, "
+            f"LUT soc={utils.SOC_LUT_SOC}"
+        )
+
+        # Interpolation mit der gleichen Funktion wie alle anderen Kennlinien
+        try:
+            soc = utils.calc_linear_relationship(
+                avg_cell_voltage,
+                utils.SOC_LUT_VOLTAGE,
+                utils.SOC_LUT_SOC,
+            )
+            soc = round(max(min(soc, 100.0), 0.0), 2)
+            logger.debug(
+                f"soc_calculation_from_lut: avg_cell_voltage={avg_cell_voltage:.4f} V "
+                f"→ SOC={soc:.2f} %"
+            )
+            return soc
+
+        except Exception as e:
+            logger.warning(f"soc_calculation_from_lut: interpolation failed: {e}")
+            return None
 
     def soc_calculation(self) -> float:
         """
