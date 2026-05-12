@@ -1033,7 +1033,7 @@ if PUBLISH_CONFIG_VALUES:
     locals_copy = locals().copy()
 
 # Parse SOC_LUT from config
-def parse_soc_lut(soc_lut_string: str) -> Union[Dict[float, float], None]:
+def parse_soc_lut(soc_lut_string: str) -> Union[dict[float, float], None]:
     """
     Parse the SOC_LUT string from config into a dictionary.
     Format: "voltage:soc, voltage:soc, ..."
@@ -1096,7 +1096,7 @@ def parse_soc_lut(soc_lut_string: str) -> Union[Dict[float, float], None]:
         return None
 
 
-def interpolate_soc_from_voltage(cell_voltage: float, soc_lut: Dict[float, float]) -> Union[float, None]:
+def interpolate_soc_from_voltage(cell_voltage: float, soc_lut: dict[float, float]) -> Union[float, None]:
     """
     Interpolate SOC from a given cell voltage using the SOC_LUT lookup table.
     
